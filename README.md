@@ -22,6 +22,9 @@ Termux를 설치하고 한 번 실행(부트스트랩 완료)한 뒤, Termux에 
 ```bash
 pkg install -y curl && curl -fsSL <RAW_URL> | bash
 ```
+```bash
+pkg install -y curl && curl -fsSL https://github.com/r00tIsRoot/AndroidTermuxInitializer/main/termux/setup-opencode.sh | bash
+```
 
 옵션은 `bash -s --` 뒤에 붙입니다.
 
