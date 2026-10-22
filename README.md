@@ -16,22 +16,21 @@ OmO 에이전트들이 **opencode Zen 무료 모델만** 쓰도록 설정합니�
 ### A. Termux에서 한 줄로 설치
 
 Termux를 설치하고 한 번 실행(부트스트랩 완료)한 뒤, Termux에 아래 한 줄을 입력합니다.
-`<RAW_URL>` 은 `termux/setup-opencode.sh` 를 올려 둔 주소입니다
-(예: GitHub 공개 저장소의 `https://raw.githubusercontent.com/<계정>/AndroidTermuxInitializer/main/termux/setup-opencode.sh`).
 
 ```bash
-pkg install -y curl && curl -fsSL <RAW_URL> | bash
-```
-```bash
-pkg install -y curl && curl -fsSL https://github.com/r00tIsRoot/AndroidTermuxInitializer/main/termux/setup-opencode.sh | bash
+pkg install -y curl && curl -fsSL https://raw.githubusercontent.com/r00tIsRoot/AndroidTermuxInitializer/main/termux/setup-opencode.sh | bash
 ```
 
 옵션은 `bash -s --` 뒤에 붙입니다.
 
 ```bash
-curl -fsSL <RAW_URL> | bash -s -- --skip-upgrade
-curl -fsSL <RAW_URL> | bash -s -- --version 1.19.3 --omo-version 5.1.40
+curl -fsSL https://raw.githubusercontent.com/r00tIsRoot/AndroidTermuxInitializer/main/termux/setup-opencode.sh | bash -s -- --skip-upgrade
+curl -fsSL https://raw.githubusercontent.com/r00tIsRoot/AndroidTermuxInitializer/main/termux/setup-opencode.sh | bash -s -- --version 1.19.3 --omo-version 5.1.40
 ```
+
+> 파일 원본은 `raw.githubusercontent.com/<계정>/<저장소>/<브랜치>/<경로>` 주소로 받아야 합니다.
+> `github.com/<계정>/<저장소>/main/...` 형식은 404가 납니다 (웹 페이지 주소는 `github.com/<계정>/<저장소>/blob/main/...`).
+> 저장소를 포크했다면 계정 부분을 바꿔 쓰세요.
 
 스크립트 파일을 이미 기기에 갖고 있다면 `bash setup-opencode.sh [옵션]` 으로 실행해도 됩니다.
 
