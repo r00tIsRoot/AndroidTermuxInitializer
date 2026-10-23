@@ -2,6 +2,7 @@
 # Termux 안에서 실행되는 opencode + oh-my-openagent(OmO 플러그인) 설치 스크립트.
 #
 #   bash setup-opencode.sh [--version X.Y.Z] [--omo-version TAG] [--log PATH] [--skip-upgrade]
+#                          [--sync-repo URL] [--sync-dir PATH] [--no-sync-widget]
 #
 # opencode는 Android용 빌드가 없으므로 linux-arm64(glibc) 바이너리를 받아
 # glibc-runner의 로더로 실행한다. Android 14+ seccomp가 Bun의 epoll_pwait2를
@@ -9,12 +10,15 @@
 # Bun이 epoll_pwait로 폴백하게 만든다.
 # OmO 플러그인은 opencode Zen 무료 모델만 쓰도록 에이전트/카테고리 모델을 배정한다
 # (Zen 무료 모델은 opencode 안에서만 허용되므로 API 키가 필요 없다).
+# 이어서 setup-sync-widget.sh 로 Termux:Widget 의 'make sync' 바로가기를 만든다 (--no-sync-widget 으로 생략).
 set -euo pipefail
 
 OC_VERSION="${OPENCODE_VERSION:-latest}"
 OMO_TAG="${OMO_VERSION:-latest}"
 LOG=""
 SKIP_UPGRADE=false
+SYNC_WIDGET=true
+SYNC_ARGS=()
 
 while (($#)); do
 	case "$1" in
@@ -22,7 +26,10 @@ while (($#)); do
 		--omo-version) OMO_TAG="$2"; shift ;;
 		--log) LOG="$2"; shift ;;
 		--skip-upgrade) SKIP_UPGRADE=true ;;
-		-h|--help) sed -n '2,11p' "$0"; exit 0 ;;
+		--sync-repo) SYNC_ARGS+=(--repo "$2"); shift ;;
+		--sync-dir) SYNC_ARGS+=(--dir "$2"); shift ;;
+		--no-sync-widget) SYNC_WIDGET=false ;;
+		-h|--help) sed -n '2,13p' "$0"; exit 0 ;;
 		*) echo "알 수 없는 옵션: $1" >&2; exit 2 ;;
 	esac
 	shift
@@ -42,6 +49,7 @@ OC_DIR="$HOME/.local/lib/opencode"
 OC_CONFIG_DIR="$HOME/.config/opencode"
 OMO_CONFIG="$HOME/.omo/omo.jsonc"
 WRAPPER="$PREFIX/bin/opencode"
+RAW_BASE="${INITIALIZER_RAW_BASE:-https://raw.githubusercontent.com/r00tIsRoot/AndroidTermuxInitializer/main}"
 GLIBC_LD="$PREFIX/glibc/lib/ld-linux-aarch64.so.1"
 APT_OPTS=(-y -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef)
 export DEBIAN_FRONTEND=noninteractive
@@ -63,6 +71,78 @@ apt-get "${APT_OPTS[@]}" install glibc-repo
 apt-get update
 # nodejs: 설정 JSON 병합용, git/ripgrep: 에이전트 도구용
 apt-get "${APT_OPTS[@]}" install glibc-runner clang curl tar nodejs git ripgrep
+
+step "Termux 추가 키 줄에 세션 목록(DRAWER) 버튼 추가"
+# 제스처 탐색에서는 화면 왼쪽 가장자리 스와이프가 '뒤로 가기'로 먹혀 세션 서랍을 열 수 없다.
+# 쓰고 있는 extra-keys 가 있으면 첫 줄 끝에 DRAWER 만 끼워 넣고, 없으면 기본 배열 + DRAWER/KEYBOARD 를 쓴다.
+TERMUX_PROPS="$HOME/.termux/termux.properties"
+[ -f "$TERMUX_PROPS" ] || [ ! -f "$HOME/.config/termux/termux.properties" ] \
+	|| TERMUX_PROPS="$HOME/.config/termux/termux.properties"
+mkdir -p "$(dirname "$TERMUX_PROPS")"
+TERMUX_PROPS="$TERMUX_PROPS" node - <<'EOF'
+const fs = require("fs")
+const file = process.env.TERMUX_PROPS
+const text = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : ""
+const lines = text.split("\n")
+// 주석이 아닌 extra-keys 설정과, 줄 끝 \ 로 이어지는 다음 줄들까지를 한 덩어리로 찾는다
+const start = lines.findIndex((l) => /^\s*extra-keys\s*=/.test(l))
+let next
+if (start < 0) {
+  next = text.replace(/\n*$/, text ? "\n" : "") +
+    "extra-keys = [['ESC','/','-','HOME','UP','END','PGUP','DRAWER'], \\\n" +
+    "              ['TAB','CTRL','ALT','LEFT','DOWN','RIGHT','PGDN','KEYBOARD']]\n"
+} else {
+  let end = start
+  while (end < lines.length - 1 && /\\\s*$/.test(lines[end])) end++
+  const value = lines.slice(start, end + 1).join("\n")
+  if (/\bDRAWER\b/i.test(value)) {
+    console.log(`이미 있음: ${file}`)
+    process.exit(0)
+  }
+  // 따옴표 밖에서 두 번째 [ 이후 처음 나오는 ] 가 첫 번째 키 줄의 끝이다 (']' 같은 키 이름은 건너뜀)
+  let depth = 0, quote = "", close = -1
+  for (let i = value.indexOf("=") + 1; i > 0 && i < value.length; i++) {
+    const ch = value[i]
+    if (quote) { if (ch === quote) quote = ""; continue }
+    if (ch === "'" || ch === '"') quote = ch
+    else if (ch === "[") depth++
+    else if (ch === "]" && depth === 2) { close = i; break }
+  }
+  if (close < 0) {
+    console.log(`[!] extra-keys 형식을 알 수 없어 그대로 둡니다: ${file}`)
+    process.exit(0)
+  }
+  const merged = value.slice(0, close).replace(/\s*$/, "") + ",'DRAWER'" + value.slice(close)
+  next = [...lines.slice(0, start), ...merged.split("\n"), ...lines.slice(end + 1)].join("\n")
+}
+if (text) fs.copyFileSync(file, `${file}.bak`)
+fs.writeFileSync(file, next)
+console.log(`갱신: ${file}`)
+EOF
+termux-reload-settings 2>/dev/null || echo "Termux를 다시 시작하면 추가 키 설정이 적용됩니다"
+
+if [ "$SYNC_WIDGET" = true ]; then
+	# 토큰/이름 입력이 필요할 수 있어 오래 걸리는 opencode 설치보다 먼저 한다
+	step "동기화 위젯 설정 (setup-sync-widget.sh)"
+	SYNC_SCRIPT=""
+	if [ -f "$0" ]; then
+		for f in "$(dirname "$0")/setup-sync-widget.sh" "$(dirname "$0")/termux-setup-sync-widget.sh"; do
+			if [ -f "$f" ]; then SYNC_SCRIPT="$f"; break; fi
+		done
+	fi
+	SYNC_TMP=""
+	if [ -z "$SYNC_SCRIPT" ]; then
+		SYNC_TMP="$(mktemp)"
+		curl -fsSL -o "$SYNC_TMP" "$RAW_BASE/termux/setup-sync-widget.sh"
+		SYNC_SCRIPT="$SYNC_TMP"
+	fi
+	# stdin 은 curl | bash 의 스크립트 본문일 수 있으므로 넘기지 않는다 (입력은 /dev/tty 로 받음)
+	if ! bash "$SYNC_SCRIPT" "${SYNC_ARGS[@]+"${SYNC_ARGS[@]}"}" </dev/null; then
+		echo "[x] 동기화 위젯 설정 실패 (--no-sync-widget 으로 건너뛸 수 있습니다)"
+		false
+	fi
+	[ -z "$SYNC_TMP" ] || rm -f "$SYNC_TMP"
+fi
 
 step "opencode 버전 확인"
 META="$(curl -fsSL "https://registry.npmjs.org/opencode-linux-arm64/$OC_VERSION")"

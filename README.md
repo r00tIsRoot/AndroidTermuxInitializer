@@ -3,6 +3,8 @@
 adb로 연결한 Android 기기의 Termux에 [opencode](https://opencode.ai)와
 [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent)(OmO) OpenCode 플러그인을 설치하고,
 OmO 에이전트들이 **opencode Zen 무료 모델만** 쓰도록 설정합니다. API 키는 필요 없습니다.
+같은 명령으로 [Termux:Widget](https://github.com/termux/termux-widget) 홈 화면 위젯에
+`~/storage/downloads/PrivateMemo` 에서 `make sync` 를 실행하는 바로가기도 만듭니다.
 
 ## 실행 방법
 
@@ -26,6 +28,13 @@ pkg install -y curl && curl -fsSL https://raw.githubusercontent.com/r00tIsRoot/A
 ```bash
 curl -fsSL https://raw.githubusercontent.com/r00tIsRoot/AndroidTermuxInitializer/main/termux/setup-opencode.sh | bash -s -- --skip-upgrade
 curl -fsSL https://raw.githubusercontent.com/r00tIsRoot/AndroidTermuxInitializer/main/termux/setup-opencode.sh | bash -s -- --version 1.19.3 --omo-version 5.1.40
+curl -fsSL https://raw.githubusercontent.com/r00tIsRoot/AndroidTermuxInitializer/main/termux/setup-opencode.sh | bash -s -- --no-sync-widget   # 동기화 위젯 생략
+```
+
+opencode는 두고 동기화 위젯만 설정하려면:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/r00tIsRoot/AndroidTermuxInitializer/main/termux/setup-sync-widget.sh | bash
 ```
 
 > 파일 원본은 `raw.githubusercontent.com/<계정>/<저장소>/<브랜치>/<경로>` 주소로 받아야 합니다.
@@ -46,13 +55,21 @@ curl -fsSL https://raw.githubusercontent.com/r00tIsRoot/AndroidTermuxInitializer
 ./termux-init.sh -v 1.19.3          # opencode 버전 고정 (기본: 최신)
 ./termux-init.sh --omo-version 5.1.40  # OmO 플러그인 버전/태그 고정 (기본: latest)
 ./termux-init.sh --keep-files       # 기기에 설치 스크립트/로그 남기기
+./termux-init.sh --no-sync-widget   # 동기화 위젯 생략
+./termux-init.sh --sync-repo <URL> --sync-dir <경로>  # 다른 저장소/폴더로 위젯 만들기
 ```
+
+B 방법은 Termux나 Termux:Widget 이 없으면 GitHub 릴리스(위젯은 Termux 배포처에 맞춰 GitHub/F-Droid)에서 받아 `adb install` 합니다.
 
 어느 방법이든 다시 실행하면 opencode 업데이트 + 설정 재생성이 됩니다 (기존 설정은 `.bak` 으로 백업).
 
 ### 사전 조건
 
-- 공통: arm64 기기 + Termux(F-Droid / GitHub 릴리스판). 설치 후 **한 번 실행**해 부트스트랩을 끝내 둘 것
+- 공통: arm64 기기 + Termux(F-Droid / GitHub 릴리스판). 설치 후 **한 번 실행**해 부트스트랩을 끝내 둘 것 (B 방법은 자동 설치)
+- 동기화 위젯:
+  - Termux:Widget 은 Termux와 **같은 곳**(F-Droid끼리, GitHub끼리)에서 받아야 합니다. 서명이 다르면 설치되지 않습니다
+  - `PrivateMemo` 는 비공개 저장소라 clone할 때 Termux 화면에서 GitHub 사용자명과 토큰([PAT](https://github.com/settings/tokens), `repo` 권한)을 입력합니다. 토큰은 `~/.git-credentials` 에 평문으로 저장되어 이후 `make sync` 에서 다시 묻지 않습니다
+  - git `user.name` / `user.email` 이 없으면 이때 함께 묻습니다
 - B 방법만:
   - PC에 `adb`(Android platform-tools), 기기에서 USB 디버깅 허용
   - 기기 화면 잠금 해제, Termux 프롬프트가 비어 있을 것 (opencode 등이 전면에서 실행 중이면 안 됨)
@@ -66,7 +83,14 @@ curl -fsSL https://raw.githubusercontent.com/r00tIsRoot/AndroidTermuxInitializer
 | 실행 래퍼 | `$PREFIX/bin/opencode` |
 | opencode 설정 (자동 업데이트 끔, 플러그인 등록) | `~/.config/opencode/opencode.jsonc`, `tui.json` |
 | OmO 에이전트/카테고리 모델 배정 | `~/.omo/omo.jsonc` 의 `[opencode]` 블록 |
-| 패키지 | `glibc-repo`, `glibc-runner`, `clang`, `curl`, `nodejs`, `git`, `ripgrep` |
+| 패키지 | `glibc-repo`, `glibc-runner`, `clang`, `curl`, `nodejs`, `git`, `ripgrep`, `make` |
+| 추가 키 줄의 세션 목록(`DRAWER`) 버튼 | `~/.termux/termux.properties` 의 `extra-keys` (기존 배열이 있으면 첫 줄 끝에만 추가, 원본은 `.bak`) |
+| 공유 저장소 연결 | `~/storage` (`termux-setup-storage`) |
+| 동기화 대상 저장소 (없으면 clone) | `~/storage/downloads/PrivateMemo` (= 기기의 `Download/PrivateMemo`) |
+| 위젯 바로가기 (`make sync` 실행 후 Enter로 닫힘) | `~/.shortcuts/PrivateMemo sync` |
+| git 설정 (`safe.directory`, `credential.helper store`, 저장소의 `core.fileMode false`) | `~/.gitconfig`, 저장소 `.git/config` |
+
+설치가 끝나면 홈 화면을 길게 눌러 **위젯 → Termux:Widget** 을 추가하고, 목록에서 `PrivateMemo sync` 를 누르세요.
 
 ## 모델 배정 (모두 opencode Zen 무료 모델)
 
@@ -97,4 +121,6 @@ curl -fsSL https://raw.githubusercontent.com/r00tIsRoot/AndroidTermuxInitializer
 - 자동 업데이트는 래퍼를 거치지 않는 바이너리를 받아 깨지므로 끕니다. 업데이트는 스크립트를 다시 실행하세요.
 - 한글 IME가 켜져 있으면 `input text` 가 한글로 조합되므로, 명령을 입력하는 동안만 AOSP/Gboard 영문 IME로 바꿨다가 복구합니다.
 - OpenCode Zen 무료 모델은 opencode 앱 안에서만 허용됩니다(다른 클라이언트에서는 `FreeTierError`). 그래서 OmO Native가 아니라 OpenCode 플러그인 방식을 씁니다.
+- 공유 저장소(`/storage/emulated/0`)의 파일은 Termux 사용자 소유가 아니라 git이 `dubious ownership` 으로 거부하므로 `safe.directory` 에 등록하고, 권한 비트를 저장하지 못하므로 `core.fileMode false` 로 둡니다.
+- 제스처 탐색을 쓰면 화면 왼쪽 가장자리 스와이프가 '뒤로 가기'로 처리돼 Termux 세션 목록(서랍)을 열 수 없습니다. 그래서 추가 키 줄에 `DRAWER` 버튼을 넣습니다. 이 버튼으로 위젯이 연 세션들 사이를 오갈 수 있습니다.
 - 진행 로그는 기기의 `Download/termux-setup-opencode.log` 에 기록되고 Mac 터미널에 실시간으로 표시됩니다.
